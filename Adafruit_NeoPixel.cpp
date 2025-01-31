@@ -119,15 +119,6 @@ Adafruit_NeoPixel::Adafruit_NeoPixel()
 }
 
 /*!
-  @brief   Deallocate Adafruit_NeoPixel object, set data pin back to INPUT.
-*/
-Adafruit_NeoPixel::~Adafruit_NeoPixel() {
-  free(pixels);
-  if (pin >= 0)
-    pinMode(pin, INPUT);
-}
-
-/*!
   @brief   Configure NeoPixel pin for output.
 */
 void Adafruit_NeoPixel::begin(void) {
@@ -3290,6 +3281,10 @@ if(is800KHz) {
   @param   p  Arduino pin number (-1 = no pin).
 */
 void Adafruit_NeoPixel::setPin(int16_t p) {
+  Serial.print("setPin: ");
+  Serial.println(p);
+  Serial.print("begun: ");
+  Serial.println(begun);
   if (begun && (pin >= 0))
     pinMode(pin, INPUT); // Disable existing out pin
   pin = p;
@@ -3725,4 +3720,23 @@ neoPixelType Adafruit_NeoPixel::str2order(const char *v) {
   }
   if (w < 0) w = r; // If 'w' not specified, duplicate r bits
   return (w << 6) | (r << 4) | ((g & 3) << 2) | (b & 3);
+}
+
+
+/*!
+  @brief   Deallocate Adafruit_NeoPixel object, set data pin back to INPUT.
+*/
+Adafruit_NeoPixel::~Adafruit_NeoPixel() {
+  free(pixels);
+  if (pin >= 0)
+    pinMode(pin, INPUT);
+#if defined(ESP32)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+    if (begun)
+    {
+      log_d("Deinit RMT on pin %d (destructor)", pin);
+      espShow(pin, NULL, 0, is800KHz);
+    }
+#endif
+#endif
 }
