@@ -52,6 +52,7 @@ void espShow(uint8_t pin, uint8_t *pixels, uint32_t numBytes, boolean is800KHz) 
   if (show_mutex && xSemaphoreTake(show_mutex, SEMAPHORE_TIMEOUT_MS / portTICK_PERIOD_MS) == pdTRUE) {
     uint32_t requiredSize = numBytes * 8;
     if (requiredSize > led_data_size) {
+      log_d("Reallocating led_data (requiredSize > led_data_size)");
       free(led_data);
       if (led_data = (rmt_data_t *)malloc(requiredSize * sizeof(rmt_data_t))) {
         led_data_size = requiredSize;
@@ -59,12 +60,14 @@ void espShow(uint8_t pin, uint8_t *pixels, uint32_t numBytes, boolean is800KHz) 
         led_data_size = 0;
       }
     } else if (requiredSize == 0) {
+      log_d("Freeing led_data (requiredSize == 0)");
       // To release RMT resources (RMT channels and led_data), call
       //  .updateLength(0) to set number of pixels/bytes to zero,
       //  then call .show() to invoke this code and free resources.
       free(led_data);
       led_data = NULL;
       if (rmtPin >= 0) {
+        log_d("Deinit RMT on pin %d", rmtPin);
         rmtDeinit(rmtPin);
         rmtPin = -1;
       }
@@ -72,8 +75,11 @@ void espShow(uint8_t pin, uint8_t *pixels, uint32_t numBytes, boolean is800KHz) 
     }
 
     if (led_data_size > 0 && requiredSize <= led_data_size) {
+      log_d("Setting up RMT on pin %d", pin);
       if (pin != rmtPin) {
+        log_d("pin!=rmtPin");
         if (rmtPin >= 0) {
+          log_d("Deinit RMT on pin %d", rmtPin);
           rmtDeinit(rmtPin);
           rmtPin = -1;
         }
@@ -81,10 +87,14 @@ void espShow(uint8_t pin, uint8_t *pixels, uint32_t numBytes, boolean is800KHz) 
           log_e("Failed to init RMT TX mode on pin %d", pin);
           return;
         }
+        log_d("Init RMT on pin %d successful", pin);
         rmtPin = pin;
+      } else {
+        log_d("pin==rmtPin - not deiniting old RMT pin");
       }
 
       if (rmtPin >= 0) {
+        log_d("rmtPin >= 0 (pin %d) - setting data", rmtPin);
         int i=0;
         for (int b=0; b < numBytes; b++) {
           for (int bit=0; bit<8; bit++){
@@ -104,10 +114,16 @@ void espShow(uint8_t pin, uint8_t *pixels, uint32_t numBytes, boolean is800KHz) 
         }
 
         rmtWrite(pin, led_data, numBytes * 8, RMT_WAIT_FOR_EVER);
+      } else {
+        log_e("rmtPin < 0 -- sounds fatal!");
       }
     }
 
     xSemaphoreGive(show_mutex);
+  } else if (!show_mutex) {
+    ESP_LOGE("Adafruit_NeoPixel", "show_mutex not true");
+  } else {
+    ESP_LOGE("Adafruit_NeoPixel", "Could not take semaphore show_mutex");
   }
 }
 
